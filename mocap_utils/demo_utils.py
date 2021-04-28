@@ -7,6 +7,7 @@ from collections import OrderedDict
 import mocap_utils.general_utils as gnu
 import numpy as np
 import json
+import subprocess as sp
 
 
 def setup_render_out(out_dir):
@@ -31,21 +32,13 @@ def setup_render_out(out_dir):
         return None
 
 
-def gen_video_out(out_dir):
-    print(">> Generating video in {}/{}.mp4".format(out_dir,osp.basename(out_dir) ))
-    inputFrameDir = osp.join(out_dir, 'merged')
-    outVideo_fileName = osp.join(out_dir, osp.basename(out_dir)+'.mp4')
-    ffmpeg_cmd = 'ffmpeg -y -f image2 -framerate 25 -pattern_type glob -i "{0}/*.jpg"  -pix_fmt yuv420p -c:v libx264 -x264opts keyint=25:min-keyint=25:scenecut=-1 -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" {1}'.format(inputFrameDir, outVideo_fileName)
-    os.system(ffmpeg_cmd)
-
-
 def __get_input_type(args):
     input_type =None
     image_exts = ('jpg', 'png', 'jpeg', 'bmp')
     video_exts = ('mp4', 'avi', 'mov')
     extension = osp.splitext(args.input_path)[1][1:]
 
-    if extension in video_exts:
+    if extension.lower() in video_exts:
         input_type ='video'
     elif osp.isdir(args.input_path):
         file_list = os.listdir(args.input_path)
@@ -54,7 +47,7 @@ def __get_input_type(args):
         if extension == 'json':
             input_type ='bbox_dir'
         else:
-            assert extension in image_exts
+            assert extension.lower() in image_exts
             input_type ='image_dir'
     elif args.input_path =='webcam':
         input_type ='webcam'
@@ -67,10 +60,28 @@ def __get_input_type(args):
 def __video_setup(args):
     video_path = args.input_path
     video_dir, video_name, video_basename, ext = gnu.analyze_path(video_path)
-    args.frame_dir = osp.join(args.out_dir, "frames", video_basename)
-    args.out_dir = osp.join(args.out_dir, "output", video_basename)
-    gnu.build_dir(args.frame_dir)
-    gnu.build_dir(args.out_dir)
+    args.seq_name = video_basename
+
+    if args.save_frame:
+        frame_dir = osp.join(args.out_dir, "frames")
+        gnu.build_dir(frame_dir)    
+
+    render_out_dir = osp.join(args.out_dir, "rendered")
+    gnu.build_dir(render_out_dir)
+
+    mocap_out_dir = osp.join(args.out_dir, "mocap")
+    gnu.build_dir(mocap_out_dir)
+
+
+def __img_seq_setup(args):
+    seq_dir_path = args.input_path
+    args.seq_name = os.path.basename(args.input_path)
+
+    render_out_dir = osp.join(args.out_dir, 'rendered')
+    gnu.build_dir(render_out_dir)
+
+    mocap_out_dir = osp.join(args.out_dir, "mocap")
+    gnu.build_dir(mocap_out_dir)
 
 
 def setup_input(args):
@@ -81,6 +92,7 @@ def setup_input(args):
         a folder with image files
         a folder with bbox (json) files
         "webcam"
+    
     """
     image_exts = ('jpg', 'png', 'jpeg', 'bmp')
     video_exts = ('mp4', 'avi', 'mov')
@@ -101,9 +113,11 @@ def setup_input(args):
     elif input_type =='image_dir':
         image_list = gnu.get_all_files(args.input_path, image_exts, "relative") 
         image_list = [ osp.join(args.input_path, image_name) for image_name in image_list ]
+        __img_seq_setup(args)
         return input_type, image_list
 
     elif input_type =='bbox_dir':
+        __img_seq_setup(args)
         json_files = gnu.get_all_files(args.input_path, '.json', "relative") 
         input_data = list()
         for json_file in json_files:
@@ -204,7 +218,7 @@ def save_info_to_json(args, image_path, body_bbox_list, hand_bbox_list):
     img_name = osp.basename(image_path)
     record = img_name.split('.')
     json_name = f"{'.'.join(record[:-1])}_bbox.json"
-    json_path = osp.join(args.out_dir, json_name)
+    json_path = osp.join(args.out_dir, 'bbox', json_name)
     gnu.make_subdir(json_path)
     gnu.save_json(json_path, saved_data)
     print(f"Bbox saved: {json_path}")
@@ -227,7 +241,7 @@ def save_pred_to_pkl(
     saved_data = OrderedDict()
     saved_data['demo_type'] = demo_type
     saved_data['smpl_type'] = smpl_type
-    saved_data['image_path'] = image_path
+    saved_data['image_path'] = osp.abspath(image_path)
     saved_data['body_bbox_list'] = body_bbox_list
     saved_data['hand_bbox_list'] = hand_bbox_list
     saved_data['save_mesh'] = args.save_mesh
@@ -277,16 +291,30 @@ def save_pred_to_pkl(
     img_name = osp.basename(image_path)
     record = img_name.split('.')
     pkl_name = f"{'.'.join(record[:-1])}_prediction_result.pkl"
-    pkl_path = osp.join(args.out_dir, pkl_name)
+    pkl_path = osp.join(args.out_dir, 'mocap', pkl_name)
     gnu.make_subdir(pkl_path)
     gnu.save_pkl(pkl_path, saved_data)
     print(f"Prediction saved: {pkl_path}")
  
 
 def save_res_img(out_dir, image_path, res_img):
+    out_dir = osp.join(out_dir, "rendered")
     img_name = osp.basename(image_path)
+    img_name = img_name[:-4] + '.jpg'           #Always save as jpg
     res_img_path = osp.join(out_dir, img_name)
     gnu.make_subdir(res_img_path)
     cv2.imwrite(res_img_path, res_img)
     print(f"Visualization saved: {res_img_path}")
 
+
+def gen_video_out(out_dir, seq_name):
+    outVideo_fileName = osp.join(out_dir, seq_name+'.mp4')
+    print(f">> Generating video in {outVideo_fileName}")
+
+    in_dir = osp.abspath(osp.join(out_dir, "rendered"))
+    out_path = osp.abspath(osp.join(out_dir, seq_name+'.mp4'))
+    ffmpeg_cmd = f'ffmpeg -y -f image2 -framerate 25 -pattern_type glob -i "{in_dir}/*.jpg"  -pix_fmt yuv420p -c:v libx264 -x264opts keyint=25:min-keyint=25:scenecut=-1 -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" {out_path}'
+    os.system(ffmpeg_cmd)
+    # print(ffmpeg_cmd.split())
+    # sp.run(ffmpeg_cmd.split())
+    # sp.Popen(ffmpeg_cmd.split(), stdout=sp.PIPE, stderr=sp.PIPE)

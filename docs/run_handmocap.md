@@ -1,6 +1,6 @@
 # Hand Motion Capture Demo
 
-Our hande module provides 3D hand motion capture output. We use the (HMR)[https://akanazawa.github.io/hmr/] model, trained with several public hand pose datasets, the SOTA peformance among single-image based methods. See our [FrankMocap paper](https://penincillin.github.io/frank_mocap) for details.
+Our hande module provides 3D hand motion capture output. We use the [HMR](https://akanazawa.github.io/hmr/) model, trained with several public hand pose datasets, the SOTA peformance among single-image based methods. See our [FrankMocap paper](https://penincillin.github.io/frank_mocap) for details.
 
 <p>
     <img src="https://github.com/jhugestar/jhugestar.github.io/blob/master/img/frankmocap_hand.gif" height="256">
@@ -91,6 +91,7 @@ Our hande module provides 3D hand motion capture output. We use the (HMR)[https:
     ```
     {"image_path": "xxx.jpg", "hand_bbox_list":[{"left_hand":[x,y,w,h], "right_hand":[x,y,w,h]}], "body_bbox_list":[[x,y,w,h]]}
     ```
+    - Note that bbox format is [minX,minY,maxX,maxY]
 - For example
     ```
     {"image_path": "./sample_data/images/cj_dance_01_03_1_00075.png", "body_bbox_list": [[149, 380, 242, 565]], "hand_bbox_list": [{"left_hand": [288.9151611328125, 376.70184326171875, 39.796295166015625, 51.72357177734375], "right_hand": [234.97779846191406, 363.4115295410156, 50.28489685058594, 57.89691162109375]}]}

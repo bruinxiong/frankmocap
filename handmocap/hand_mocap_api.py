@@ -10,7 +10,6 @@ from torchvision.transforms import transforms
 from handmocap.hand_modules.test_options import TestOptions
 from handmocap.hand_modules.h3dw_model import H3DWModel
 from mocap_utils.coordconv import convert_smpl_to_bbox, convert_bbox_to_oriIm
-import mocap_utils.geometry_utils as gu
 
 
 class HandMocap:
@@ -66,7 +65,7 @@ class HandMocap:
         
         # add additional margin
         if add_margin:
-            margin = int(0.3 * (max_y-min_y)) # if use loose crop, change 0.03 to 0.1
+            margin = int(0.3 * (max_y-min_y)) # if use loose crop, change 0.3 to 1.0
             min_y = max(min_y-margin, 0)
             max_y = min(max_y+margin, ori_height)
             min_x = max(min_x-margin, 0)
@@ -104,7 +103,7 @@ class HandMocap:
         assert hand_type in ['left_hand', 'right_hand']
         img_cropped, bbox_scale_ratio, bbox_processed = \
             self.__pad_and_resize(raw_image, hand_bbox, add_margin)
-
+        
         #horizontal Flip to make it as right hand
         if hand_type=='left_hand':
             img_cropped = np.ascontiguousarray(img_cropped[:, ::-1,:], img_cropped.dtype) 
@@ -139,7 +138,7 @@ class HandMocap:
 
         for hand_bboxes in hand_bbox_list:
 
-            if hand_bboxes is None:     #Should keep the same size with bbox size
+            if hand_bboxes is None:     # Should keep the same size with bbox size
                 pred_output_list.append(None)
                 hand_bbox_list_processed.append(None)
                 continue
@@ -174,6 +173,7 @@ class HandMocap:
                         pred_verts_origin = pred_res['pred_verts'][0]
                         faces = self.model_regressor.right_hand_faces_local
                         pred_pose = pred_res['pred_pose_params'].copy()
+                        pred_joints = pred_res['pred_joints_3d'].copy()[0]
 
                         if hand_type == 'left_hand':
                             cam[1] *= -1
@@ -181,27 +181,32 @@ class HandMocap:
                             faces = faces[:, ::-1]
                             pred_pose[:, 1::3] *= -1
                             pred_pose[:, 2::3] *= -1
+                            pred_joints[:, 0] *= -1
 
                         pred_output[hand_type] = dict()
                         pred_output[hand_type]['pred_vertices_smpl'] = pred_verts_origin # SMPL-X hand vertex in bbox space
+                        pred_output[hand_type]['pred_joints_smpl'] = pred_joints
                         pred_output[hand_type]['faces'] = faces
 
                         pred_output[hand_type]['bbox_scale_ratio'] = bbox_scale_ratio
-                        pred_output[hand_type]['bbox_top_left'] = bbox_processed[:2]
+                        pred_output[hand_type]['bbox_top_left'] = np.array(bbox_processed[:2])
                         pred_output[hand_type]['pred_camera'] = cam
                         pred_output[hand_type]['img_cropped'] = img_cropped
 
-                        # pred hand pose & shape params
-                        pred_output[hand_type]['pred_hand_pose'] = pred_pose
+                        # pred hand pose & shape params & hand joints 3d
+                        pred_output[hand_type]['pred_hand_pose'] = pred_pose # (1, 48): (1, 3) for hand rotation, (1, 45) for finger pose.
                         pred_output[hand_type]['pred_hand_betas'] = pred_res['pred_shape_params'] # (1, 10)
-                        
+
                         #Convert vertices into bbox & image space
                         cam_scale = cam[0]
                         cam_trans = cam[1:]
                         vert_smplcoord = pred_verts_origin.copy()
+                        joints_smplcoord = pred_joints.copy()
                         
                         vert_bboxcoord = convert_smpl_to_bbox(
                             vert_smplcoord, cam_scale, cam_trans, bAppTransFirst=True) # SMPL space -> bbox space
+                        joints_bboxcoord = convert_smpl_to_bbox(
+                            joints_smplcoord, cam_scale, cam_trans, bAppTransFirst=True) # SMPL space -> bbox space
 
                         hand_boxScale_o2n = pred_output[hand_type]['bbox_scale_ratio']
                         hand_bboxTopLeft = pred_output[hand_type]['bbox_top_left']
@@ -211,8 +216,13 @@ class HandMocap:
                                 img_original.shape[1], img_original.shape[0]) 
                         pred_output[hand_type]['pred_vertices_img'] = vert_imgcoord
 
+                        joints_imgcoord = convert_bbox_to_oriIm(
+                                joints_bboxcoord, hand_boxScale_o2n, hand_bboxTopLeft, 
+                                img_original.shape[1], img_original.shape[0]) 
+                        pred_output[hand_type]['pred_joints_img'] = joints_imgcoord
+
             pred_output_list.append(pred_output)
             hand_bbox_list_processed.append(hand_bboxes_processed)
         
         assert len(hand_bbox_list_processed) == len(hand_bbox_list)
-        return hand_bbox_list_processed, pred_output_list
+        return pred_output_list

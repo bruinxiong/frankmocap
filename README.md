@@ -2,6 +2,11 @@
 
 FrankMocap pursues an easy-to-use single view 3D motion capture system developed by Facebook AI Research (FAIR). FrankMocap provides state-of-the-art 3D pose estimation outputs for body, hand, and body+hands in a single system. The core objective of FrankMocap is to democratize the 3D human pose estimation technology, enabling anyone (researchers, engineers, developers, artists, and others) can easily obtain 3D motion capture outputs from videos and images.
 
+<b>Btw, why the name FrankMocap? </b> Our pipeline to integrate body and hand modules reminds us of [Frankenstein's monster](https://en.wikipedia.org/wiki/Frankenstein)!
+
+### News:
+  - [2020/10/09] We have improved openGL rendering speed. It's about 40% faster. (e.g., body module: 6fps -> 11fps)
+
 ## Key Features
 - Body Motion Capture:
 <p>
@@ -21,6 +26,9 @@ FrankMocap pursues an easy-to-use single view 3D motion capture system developed
 - Whole body Motion Capture (body + hands)
 <p>
     <img src="https://github.com/jhugestar/jhugestar.github.io/blob/master/img/frankmocap_wholebody.gif" height="200">
+</p>
+<p>
+    <img src="https://penincillin.github.io/frank_mocap/video_02.gif" height="200">
 </p>
 
 
@@ -52,11 +60,15 @@ FrankMocap pursues an easy-to-use single view 3D motion capture system developed
   python -m demo.demo_frankmocap --input_path ./sample_data/han_short.mp4 --out_dir ./mocap_output
 
   # screenless mode  (e.g., a remote server)
-  python -m demo.demo_frankmocap --input_path ./sample_data/han_short.mp4 --out_dir ./mocap_output
+  xvfb-run -a python -m demo.demo_frankmocap --input_path ./sample_data/han_short.mp4 --out_dir ./mocap_output
   ```
 - Note: 
   - Above commands use openGL by default. If it does not work, you may try alternative renderers (pytorch3d or openDR). 
   - See the readme of each module for details
+  
+  
+## Joint Order
+- See [joint_order](docs/joint_order.md)
 
 
 ## Body Motion Capture Module
@@ -91,7 +103,7 @@ See the [LICENSE](LICENSE) file.
 ```
 
 - FrankMocap leverages many amazing open-sources shared in research community.
-    - [SMPL](https://smpl.is.tue.mpg.de/), [SMPLX](smpl-x.is.tue.mpg.de) 
+    - [SMPL](https://smpl.is.tue.mpg.de/), [SMPLX](https://smpl-x.is.tue.mpg.de/) 
     - [Detectron2](https://github.com/facebookresearch/detectron2)       
     - [Pytorch3D](https://pytorch3d.org/) (for rendering)
     - [OpenDR](https://github.com/mattloper/opendr/wiki) (for rendering)
